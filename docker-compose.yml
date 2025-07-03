@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # Eureka Server
+  eureka-server-app:
+    build:
+      context: ./serviceRegistryEureka
+      dockerfile: Dockerfile
+    ports:
+      - "8761:8761"
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:8761/"]
+    #   interval: 10s # Проверять каждые 10 секунд
+    #   timeout: 20s # Ждать ответа до 20 секунд
+    #   retries: 10 # Количество попыток
+    #   start_period: 60s # Дать 60 секунд на первоначальный старт
+    networks:
+      - microservices-network
+
+  # API Gateway
+  gateway-app:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8765:8765"
+    depends_on:
+      eureka-server-app:
+        condition: service_started
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server-app:8761/eureka/
+    networks:
+      - microservices-network
+
+  # Question Service DB
+  question-db:
+    image: postgres:13
+    container_name: question-db
+    environment:
+      POSTGRES_DB: questiondb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - question-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - microservices-network
+
+  # Question Service
+  question-service-app:
+    build:
+      context: ./question-service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      question-db:
+        condition: service_started
+      eureka-server-app:
+        condition: service_started
+    environment:
+      SPRING_APPLICATION_NAME: question-service
+      SERVER_PORT: 8080
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server-app:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://question-db:5432/questiondb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    networks:
+      - microservices-network
+
+  # Quiz Service DB
+  quiz-db:
+    image: postgres:13
+    container_name: quiz-db
+    environment:
+      POSTGRES_DB: quizdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - quiz-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - microservices-network
+
+  # Quiz Service
+  quiz-service-app:
+    build:
+      context: ./quiz-service
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    depends_on:
+      quiz-db:
+        condition: service_started
+      eureka-server-app:
+        condition: service_started
+    environment:
+      SPRING_APPLICATION_NAME: quiz-service
+      SERVER_PORT: 8090
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server-app:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://quiz-db:5432/quizdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    networks:
+      - microservices-network
+
+volumes:
+  question-data:
+  quiz-data:
+
+networks:
+  microservices-network:
+    driver: bridge

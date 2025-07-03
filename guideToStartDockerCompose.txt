@@ -1,0 +1,4 @@
+Почему не работает через healthcheck - я не знаю..:(
+docker-compose up -d eureka-server-app
+sleep 15
+docker-compose up -d question-service-app quiz-service-app gateway-app
